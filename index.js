@@ -31,7 +31,16 @@ const db = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
 });
-
+// const db = mysql.createPool({
+//   host: "containers-us-west-XXX.railway.app", // 这里不要加 mysql://
+//   user: "root",
+//   password: "HKhSevDGJwjtcyNRCCQkZdIfzWcDKrSN",
+//   database: "studyinfo", // 注意要和你的真实数据库名一致
+//   port: 3306,
+//   waitForConnections: true,
+//   connectionLimit: 10,
+//   queueLimit: 0,
+// });
 // check connection status
 db.getConnection((err, connection) => {
   if (err) {
