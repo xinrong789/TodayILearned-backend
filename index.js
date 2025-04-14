@@ -1,66 +1,223 @@
-const express = require("express")
-const mysql = require("mysql2")
-const cors = require("cors")
+const express = require("express");
+const mysql = require("mysql2");
+const cors = require("cors");
 
-const app = express()
-const port = 3000
+const app = express();
+const port = 3000;
 
-// 使用 CORS 中间件
-app.use(cors())
+//  Express
+app.use(cors());
 
-// 支持 JSON 请求体
-app.use(express.json())
+app.use(express.json());
 
-// 配置数据库连接池
+// connect to mysql
 const db = mysql.createPool({
   host: "localhost",
   user: "root",
   password: "",
   database: "studyinfo",
-  waitForConnections: true, // 等待连接
-  connectionLimit: 10, // 最大连接数
-  queueLimit: 0 // 请求队列的最大长度
-})
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+});
 
-// 测试数据库连接
+// check connection status
 db.getConnection((err, connection) => {
   if (err) {
-    console.error("数据库连接失败:", err)
+    console.error("connection failed:", err);
   } else {
-    console.log("✅ 数据库连接成功")
-    connection.release() // 释放连接
+    console.log("database connection successful");
+    connection.release();
   }
-})
+});
 
-// API: 获取所有 facts
+// RESTful API get all facts
+
+// app.get("/facts", (req, res) => {
+//   const category = req.query.category || "all";
+//   console.log("Requested category:", category); // 添加日志
+
+//   let sql = "SELECT * FROM facts";
+
+//   if (category !== "all") {
+//     sql += " WHERE category = ?";
+
+//     db.query(sql, [category], (err, results) => {
+//       if (err) {
+//         console.error("Query failed:", err);
+//         return res.status(500).send("Query failed");
+//       }
+//       console.log(`Found ${results.length} results for category: ${category}`);
+//       res.json(results);
+//     });
+//   } else {
+//     // 查询所有类别
+//     db.query(sql, (err, results) => {
+//       if (err) {
+//         console.error("Query failed:", err);
+//         return res.status(500).send("Query failed");
+//       }
+//       console.log(`Found ${results.length} results for all categories`);
+//       res.json(results);
+//     });
+//   }
+// });
 app.get("/facts", (req, res) => {
-  const sql = "SELECT * FROM facts"
+  const category = req.query.category || "all";
+  console.log("Requested category:", category);
+
+  let sql = "SELECT * FROM facts";
+  let params = [];
+
+  if (category !== "all") {
+    sql += " WHERE category = ?";
+    params.push(category);
+  }
+
+  db.query(sql, params, (err, results) => {
+    if (err) {
+      console.error("Query failed:", err);
+      return res.status(500).send("Query failed");
+    }
+
+    console.log(
+      `Found ${results.length} results for category: ${
+        category === "all" ? "all categories" : category
+      }`
+    );
+    res.json(results);
+  });
+});
+// Route to get facts with specific ID
+app.get("/facts", (req, res) => {
+  let sql = "SELECT * FROM facts";
   db.query(sql, (err, results) => {
     if (err) {
-      console.error("查询失败:", err)
-      return res.status(500).send("查询失败")
+      console.error("Query failed:", err);
+      return res.status(500).send("Query failed");
     }
-    res.json(results)
-  })
-})
+    res.json(results);
+  });
+});
+app.get("/facts/:id", (req, res) => {
+  const { id } = req.params; // Extract the ID from the request URL
+  console.log("Fetching fact with ID:", id);
 
-// API: 添加一个 fact
-app.post("/facts", (req, res) => {
-  const { text, category } = req.body
-  if (!text || !category) {
-    return res.status(400).send("文本和类别是必填的")
-  }
-  const sql = "INSERT INTO facts (text, category) VALUES (?, ?)"
-  db.query(sql, [text, category], (err, result) => {
+  let sql = "SELECT * FROM facts WHERE id = ?"; // SQL query to get the record by ID
+  db.query(sql, [id], (err, results) => {
     if (err) {
-      console.error("插入失败:", err)
-      return res.status(500).send("插入失败")
+      console.error("Query failed:", err);
+      return res.status(500).send("Query failed");
     }
-    res.status(201).send("添加成功")
-  })
-})
 
-// 启动服务器
+    if (results.length === 0) {
+      return res.status(404).send("Fact not found");
+    }
+
+    res.json(results[0]); // Return the fact data (first result)
+  });
+});
+
+// add fact
+
+app.post("/facts", (req, res) => {
+  const { text, source, category } = req.body;
+  console.log("Received data:", text, source, category); // 打印接收到的数据
+
+  let sql = "INSERT INTO facts (text, source, category) VALUES (?, ?, ?)";
+
+  db.query(sql, [text, source, category], (err, result) => {
+    if (err) {
+      console.error("Insert failed", err);
+      return res.status(500).send("Insert failed");
+    }
+
+    // 返回插入的新记录
+    const newFact = {
+      id: result.insertId,
+      text,
+      source,
+      category,
+      votesInteresting: 0,
+      createdIn: new Date().getFullYear(),
+    };
+
+    res.status(201).json(newFact); // 返回新插入的数据
+  });
+});
+
+// DELETE fact by ID
+app.delete("/facts/:id", (req, res) => {
+  const { id } = req.params;
+  console.log("Deleting fact with ID:", id);
+
+  // SQL 删除语句
+  let sql = "DELETE FROM facts WHERE id = ?";
+
+  db.query(sql, [id], (err, result) => {
+    if (err) {
+      console.error("Delete failed:", err);
+      return res.status(500).send("Delete failed");
+    }
+
+    // 如果没有记录被删除，返回 404 错误
+    if (result.affectedRows === 0) {
+      return res.status(404).send("Fact not found");
+    }
+
+    // 返回删除成功的消息
+    res.status(200).send("Fact deleted successfully");
+  });
+});
+
+app.patch("/facts/:id", (req, res) => {
+  const id = parseInt(req.params.id);
+  const updates = req.body;
+  const columnName = Object.keys(updates)[0]; // 获取要更新的列名
+
+  console.log(`更新ID为${id}的事实，字段:${columnName}`);
+
+  // 首先获取当前值
+  db.query("SELECT * FROM facts WHERE id = ?", [id], (err, results) => {
+    if (err) {
+      console.error("查询失败:", err);
+      return res.status(500).json({ error: "查询失败" });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ error: "Fact not found" });
+    }
+
+    const fact = results[0];
+    let newValue;
+
+    // 检查是否是投票字段
+    if (columnName.startsWith("votes")) {
+      // 增加投票计数
+      newValue = fact[columnName] + 1;
+    } else {
+      // 使用提供的值
+      newValue = updates[columnName];
+    }
+
+    // 更新数据库
+    db.query(
+      "UPDATE facts SET ?? = ? WHERE id = ?",
+      [columnName, newValue, id],
+      (err, result) => {
+        if (err) {
+          console.error("更新失败:", err);
+          return res.status(500).json({ error: "更新失败" });
+        }
+
+        // 返回更新后的完整对象
+        const updatedFact = { ...fact, [columnName]: newValue };
+        res.json(updatedFact);
+      }
+    );
+  });
+});
+// start server
 app.listen(port, () => {
-  console.log(`🚀 服务器已启动：http://localhost:${port}`)
-})
+  console.log(`server start:http://localhost:${port}`);
+});
