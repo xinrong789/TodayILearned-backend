@@ -33,35 +33,6 @@ db.getConnection((err, connection) => {
 
 // RESTful API get all facts
 
-// app.get("/facts", (req, res) => {
-//   const category = req.query.category || "all";
-//   console.log("Requested category:", category); // 添加日志
-
-//   let sql = "SELECT * FROM facts";
-
-//   if (category !== "all") {
-//     sql += " WHERE category = ?";
-
-//     db.query(sql, [category], (err, results) => {
-//       if (err) {
-//         console.error("Query failed:", err);
-//         return res.status(500).send("Query failed");
-//       }
-//       console.log(`Found ${results.length} results for category: ${category}`);
-//       res.json(results);
-//     });
-//   } else {
-//     // 查询所有类别
-//     db.query(sql, (err, results) => {
-//       if (err) {
-//         console.error("Query failed:", err);
-//         return res.status(500).send("Query failed");
-//       }
-//       console.log(`Found ${results.length} results for all categories`);
-//       res.json(results);
-//     });
-//   }
-// });
 app.get("/facts", (req, res) => {
   const category = req.query.category || "all";
   console.log("Requested category:", category);
